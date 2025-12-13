@@ -1,0 +1,4 @@
+service,total_customers,churned,retained,color,churnRate
+DSL,2421,459,1962,#4ecdc4,19.0
+Fiber optic,3096,1297,1799,#ff6b6b,41.9
+No,1526,113,1413,#ffd93d,7.4

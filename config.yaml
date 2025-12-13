@@ -1,0 +1,122 @@
+# Telco Customer Churn Project Configuration
+# Module: CC6058ES Big Data and Visualisation
+
+# Data Configuration
+data:
+  raw_file: "Telco_Customer_Churn_Dataset.csv"
+  target_column: "Churn"
+  id_column: "customerID"
+  test_size: 0.2
+  random_state: 42
+
+# Feature Configuration
+features:
+  numeric_columns:
+    - tenure
+    - MonthlyCharges
+    - TotalCharges
+  
+  categorical_columns:
+    - gender
+    - SeniorCitizen
+    - Partner
+    - Dependents
+    - PhoneService
+    - MultipleLines
+    - InternetService
+    - OnlineSecurity
+    - OnlineBackup
+    - DeviceProtection
+    - TechSupport
+    - StreamingTV
+    - StreamingMovies
+    - Contract
+    - PaperlessBilling
+    - PaymentMethod
+  
+  binary_columns:
+    - gender
+    - Partner
+    - Dependents
+    - PhoneService
+    - PaperlessBilling
+
+# Model Configuration
+models:
+  logistic_regression:
+    enabled: true
+    params:
+      max_iter: 1000
+      random_state: 42
+      class_weight: balanced
+  
+  decision_tree:
+    enabled: true
+    params:
+      max_depth: 10
+      min_samples_split: 10
+      random_state: 42
+      class_weight: balanced
+  
+  random_forest:
+    enabled: true
+    params:
+      n_estimators: 100
+      max_depth: 10
+      min_samples_split: 10
+      random_state: 42
+      class_weight: balanced
+      n_jobs: -1
+  
+  gradient_boosting:
+    enabled: true
+    params:
+      n_estimators: 100
+      max_depth: 5
+      learning_rate: 0.1
+      random_state: 42
+
+# Evaluation Configuration
+evaluation:
+  primary_metric: f1_score
+  threshold: 0.5
+  metrics:
+    - accuracy
+    - precision
+    - recall
+    - f1_score
+    - roc_auc
+
+# Kafka Streaming Configuration
+kafka:
+  bootstrap_servers: "localhost:9092"
+  topic: "customer-events"
+  consumer_group: "churn-predictor"
+  auto_offset_reset: "earliest"
+
+# Paths Configuration
+paths:
+  raw_data: "data/raw"
+  processed_data: "data/processed"
+  artifacts: "artifacts"
+  models: "models"
+  notebooks: "notebooks"
+
+# MLflow Configuration
+mlflow:
+  tracking_uri: "file:./mlruns"
+  experiment_name: "telco_churn_prediction"
+  run_name_prefix: "churn_run"
+  model_registry_name: "telco_churn_model"
+  artifact_path: "model"
+  autolog: false
+  
+  tags:
+    project: "telco_churn"
+    module: "CC6058ES"
+    version: "1.0.0"
+
+# Logging Configuration
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

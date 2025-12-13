@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telco Customer Churn Dashboard - D3.js Visualization</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #eee;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .dashboard-header {
+            text-align: center;
+            padding: 30px 0;
+            margin-bottom: 30px;
+        }
+        
+        .dashboard-header h1 {
+            font-size: 2.5em;
+            color: #00d4ff;
+            text-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+        }
+        
+        .dashboard-header p {
+            color: #aaa;
+            margin-top: 10px;
+        }
+        
+        .metrics-container {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            flex-wrap: wrap;
+            margin-bottom: 40px;
+        }
+        
+        .metric-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 25px 40px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            transition: transform 0.3s ease;
+        }
+        
+        .metric-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .metric-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .metric-label {
+            color: #888;
+            font-size: 0.9em;
+        }
+        
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 30px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        
+        .chart-container {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 15px;
+            padding: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        
+        .chart-title {
+            font-size: 1.2em;
+            margin-bottom: 20px;
+            color: #00d4ff;
+            border-bottom: 1px solid rgba(0, 212, 255, 0.2);
+            padding-bottom: 10px;
+        }
+        
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            color: #fff;
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-size: 0.9em;
+            pointer-events: none;
+            z-index: 1000;
+            border: 1px solid #00d4ff;
+        }
+        
+        .axis-label {
+            fill: #888;
+            font-size: 12px;
+        }
+        
+        .tick text {
+            fill: #888;
+        }
+        
+        .tick line {
+            stroke: #444;
+        }
+        
+        .domain {
+            stroke: #444;
+        }
+        
+        .legend {
+            font-size: 12px;
+        }
+        
+        .legend-item {
+            cursor: pointer;
+        }
+        
+        .bar-chart .bar {
+            transition: opacity 0.3s;
+        }
+        
+        .bar-chart .bar:hover {
+            opacity: 0.8;
+        }
+        
+        .pie-slice {
+            transition: transform 0.3s;
+            cursor: pointer;
+        }
+        
+        .pie-slice:hover {
+            transform: scale(1.05);
+        }
+        
+        .footer {
+            text-align: center;
+            padding: 30px;
+            color: #666;
+            margin-top: 40px;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-header">
+        <h1>📊 Telco Customer Churn Analytics</h1>
+        <p>Interactive D3.js Visualization Dashboard | Big Data & Visualization Coursework</p>
+    </div>
+    
+    <div class="metrics-container">
+        <div class="metric-card">
+            <div class="metric-value" style="color: #00d4ff;" id="total-customers">7,032</div>
+            <div class="metric-label">Total Customers</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-value" style="color: #ff6b6b;" id="churn-rate">26.58%</div>
+            <div class="metric-label">Churn Rate</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-value" style="color: #4ecdc4;" id="avg-revenue">$64.80</div>
+            <div class="metric-label">Avg Monthly Revenue</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-value" style="color: #ffd93d;" id="high-risk">1,869</div>
+            <div class="metric-label">High Risk Customers</div>
+        </div>
+    </div>
+    
+    <div class="charts-grid">
+        <div class="chart-container">
+            <h3 class="chart-title">📈 Churn Distribution</h3>
+            <div id="pie-chart"></div>
+        </div>
+        
+        <div class="chart-container">
+            <h3 class="chart-title">📊 Churn by Contract Type</h3>
+            <div id="bar-chart-contract"></div>
+        </div>
+        
+        <div class="chart-container">
+            <h3 class="chart-title">📉 Churn Rate by Tenure</h3>
+            <div id="line-chart-tenure"></div>
+        </div>
+        
+        <div class="chart-container">
+            <h3 class="chart-title">💳 Churn by Payment Method</h3>
+            <div id="bar-chart-payment"></div>
+        </div>
+        
+        <div class="chart-container">
+            <h3 class="chart-title">🌐 Internet Service Impact</h3>
+            <div id="donut-chart-internet"></div>
+        </div>
+        
+        <div class="chart-container">
+            <h3 class="chart-title">📊 Monthly Charges Distribution</h3>
+            <div id="histogram-charges"></div>
+        </div>
+    </div>
+    
+    <div class="footer">
+        <p>Student ID: E285181 | Module: CC6058ES Big Data and Visualisation</p>
+        <p>Data Source: Telco Customer Churn Dataset (7,043 records)</p>
+    </div>
+    
+    <div class="tooltip" id="tooltip" style="display: none;"></div>
+
+    <script>
+        // Load precomputed aggregate CSVs (exported by scripts/export_aggregates.py)
+        let churnData = {};
+
+        Promise.all([
+            d3.csv("./data/churn_distribution.csv"),
+            d3.csv("./data/contract_distribution.csv"),
+            d3.csv("./data/tenure_buckets.csv"),
+            d3.csv("./data/payment_methods.csv"),
+            d3.csv("./data/internet_service.csv"),
+            d3.csv("./data/monthly_charges_bins.csv")
+        ]).then(function([dist, contract, tenure, payment, internet, monthly]) {
+            // Map loaded CSVs to churnData structure expected by chart functions
+            churnData.distribution = dist.map(d => ({ label: d.label || d.Label || d.Label, value: +d.value, color: d.color || d.Color || (d.label && d.label.toLowerCase().includes('churn') ? '#ff6b6b' : '#4ecdc4') }));
+
+            churnData.byContract = contract.map(d => ({ contract: d.contract, churned: +d.churned, retained: +d.retained, churnRate: +d.churnRate }));
+
+            churnData.byTenure = tenure.map(d => ({ tenure: d.tenure, customers: +d.customers, churnRate: +d.churnRate }));
+
+            churnData.byPayment = payment.map(d => ({ method: d.method, churned: +d.churned, retained: +d.retained, churnRate: +d.churnRate }));
+
+            churnData.byInternet = internet.map(d => ({ service: d.service, churned: +d.churned, retained: +d.retained, color: d.color || '#ffd93d' }));
+
+            churnData.monthlyCharges = monthly.map(d => ({ range: d.range, count: +d.count, avgChurn: +d.avgChurn }));
+
+            // Update simple top-level metrics if present
+            try {
+                const total = churnData.distribution.reduce((s, x) => s + x.value, 0);
+                const churn = churnData.distribution.find(d => d.label && d.label.toLowerCase().includes('churn'))?.value || 0;
+                const avgRev = ((churnData.monthlyCharges.reduce((s,d)=>s + (d.count * 0),0))/Math.max(total,1)).toFixed(2);
+                d3.select('#total-customers').text(total.toLocaleString());
+                d3.select('#churn-rate').text(((churn/Math.max(total,1))*100).toFixed(2) + '%');
+                // avg revenue unchanged (calculated elsewhere) - leave existing value
+            } catch(e) { console.warn('Metrics update skipped', e); }
+
+            // Create all charts using precomputed aggregates
+            createPieChart();
+            createContractChart();
+            createTenureChart();
+            createPaymentChart();
+            createInternetChart();
+            createChargesHistogram();
+
+            console.log('Dashboard loaded from aggregate CSVs');
+        }).catch(function(error) {
+            console.error('Error loading aggregate CSVs:', error);
+            const chartIds = ["#pie-chart", "#bar-chart-contract", "#line-chart-tenure", "#bar-chart-payment", "#donut-chart-internet", "#histogram-charges"];
+            chartIds.forEach(id => {
+                const container = d3.select(id);
+                container.selectAll("*").remove();
+                container.append("div")
+                    .style("color", "#ff6b6b")
+                    .style("padding", "20px")
+                    .style("font-size", "14px")
+                    .style("text-align", "center")
+                    .html(`<strong>⚠ Error loading aggregates</strong><br/>${error.message}<br/><small>Run scripts/export_aggregates.py to generate CSVs</small>`);
+            });
+        });
+
+        // Tooltip helper
+        const tooltip = d3.select("#tooltip");
+        
+        function showTooltip(event, content) {
+            tooltip
+                .style("display", "block")
+                .style("left", (event.pageX + 15) + "px")
+                .style("top", (event.pageY - 10) + "px")
+                .html(content);
+        }
+        
+        function hideTooltip() {
+            tooltip.style("display", "none");
+        }
+        
+        // Pie chart - Churn Distribution
+        function createPieChart() {
+            const width = 450;
+            const height = 350;
+            const radius = Math.min(width, height) / 2 - 40;
+            
+            // Clear existing content
+            d3.select("#pie-chart").selectAll("*").remove();
+            
+            const svg = d3.select("#pie-chart")
+                .append("svg")
+                .attr("width", width)
+                .attr("height", height)
+                .append("g")
+                .attr("transform", `translate(${width/2}, ${height/2})`);
+            
+            const pie = d3.pie()
+                .value(d => d.value)
+                .sort(null);
+            
+            const arc = d3.arc()
+                .innerRadius(0)
+                .outerRadius(radius);
+            
+            const labelArc = d3.arc()
+                .innerRadius(radius * 0.6)
+                .outerRadius(radius * 0.6);
+            
+            const slices = svg.selectAll(".pie-slice")
+                .data(pie(churnData.distribution))
+                .enter()
+                .append("g")
+                .attr("class", "pie-slice");
+            
+            slices.append("path")
+                .attr("d", arc)
+                .attr("fill", d => d.data.color)
+                .attr("stroke", "#1a1a2e")
+                .attr("stroke-width", 2)
+                .on("mouseover", function(event, d) {
+                    const total = d3.sum(churnData.distribution, d => d.value);
+                    const percent = ((d.data.value / total) * 100).toFixed(1);
+                    showTooltip(event, `
+                        <strong>${d.data.label}</strong><br/>
+                        Count: ${d.data.value.toLocaleString()}<br/>
+                        Percentage: ${percent}%
+                    `);
+                })
+                .on("mouseout", hideTooltip);
+            
+            slices.append("text")
+                .attr("transform", d => `translate(${labelArc.centroid(d)})`)
+                .attr("text-anchor", "middle")
+                .style("fill", "#fff")
+                .style("font-weight", "bold")
+                .text(d => d.data.label);
+            
+            // Legend
+            const legend = svg.selectAll(".legend-item")
+                .data(churnData.distribution)
+                .enter()
+                .append("g")
+                .attr("class", "legend-item")
+                .attr("transform", (d, i) => `translate(${radius + 30}, ${-20 + i * 25})`);
+            
+            legend.append("rect")
+                .attr("width", 15)
+                .attr("height", 15)
+                .attr("fill", d => d.color);
+            
+            legend.append("text")
+                .attr("x", 22)
+                .attr("y", 12)
+                .style("fill", "#aaa")
+                .text(d => `${d.label}: ${d.value.toLocaleString()}`);
+        }
+        
+        // Bar chart - Churn by Contract
+        function createContractChart() {
+            const margin = { top: 30, right: 30, bottom: 60, left: 60 };
+            const width = 450 - margin.left - margin.right;
+            const height = 320 - margin.top - margin.bottom;
+            
+            // Clear existing content
+            d3.select("#bar-chart-contract").selectAll("*").remove();
+            
+            const svg = d3.select("#bar-chart-contract")
+                .append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom)
+                .append("g")
+                .attr("transform", `translate(${margin.left}, ${margin.top})`);
+            
+            const x = d3.scaleBand()
+                .domain(churnData.byContract.map(d => d.contract))
+                .range([0, width])
+                .padding(0.3);
+            
+            const y = d3.scaleLinear()
+                .domain([0, 50])
+                .range([height, 0]);
+            
+            // X axis
+            svg.append("g")
+                .attr("transform", `translate(0, ${height})`)
+                .call(d3.axisBottom(x))
+                .selectAll("text")
+                .attr("transform", "rotate(-15)")
+                .style("text-anchor", "end");
+            
+            // Y axis
+            svg.append("g")
+                .call(d3.axisLeft(y).tickFormat(d => d + "%"));
+            
+            // Y axis label
+            svg.append("text")
+                .attr("transform", "rotate(-90)")
+                .attr("y", -45)
+                .attr("x", -height / 2)
+                .attr("text-anchor", "middle")
+                .style("fill", "#888")
+                .text("Churn Rate (%)");
+            
+            // Bars
+            svg.selectAll(".bar")
+                .data(churnData.byContract)
+                .enter()
+                .append("rect")
+                .attr("class", "bar")
+                .attr("x", d => x(d.contract))
+                .attr("y", d => y(d.churnRate))
+                .attr("width", x.bandwidth())
+                .attr("height", d => height - y(d.churnRate))
+                .attr("fill", (d, i) => d3.schemeCategory10[i])
+                .on("mouseover", function(event, d) {
+                    showTooltip(event, `
+                        <strong>${d.contract}</strong><br/>
+                        Churn Rate: ${d.churnRate}%<br/>
+                        Churned: ${d.churned.toLocaleString()}<br/>
+                        Retained: ${d.retained.toLocaleString()}
+                    `);
+                })
+                .on("mouseout", hideTooltip);
+            
+            // Labels
+            svg.selectAll(".label")
+                .data(churnData.byContract)
+                .enter()
+                .append("text")
+                .attr("x", d => x(d.contract) + x.bandwidth() / 2)
+                .attr("y", d => y(d.churnRate) - 5)
+                .attr("text-anchor", "middle")
+                .style("fill", "#fff")
+                .style("font-size", "12px")
+                .text(d => d.churnRate + "%");
+        }
+        
+        // Line chart - Churn by Tenure
+        function createTenureChart() {
+            const margin = { top: 30, right: 30, bottom: 60, left: 60 };
+            const width = 450 - margin.left - margin.right;
+            const height = 320 - margin.top - margin.bottom;
+            
+            // Clear existing content
+            d3.select("#line-chart-tenure").selectAll("*").remove();
+            
+            const svg = d3.select("#line-chart-tenure")
+                .append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom)
+                .append("g")
+                .attr("transform", `translate(${margin.left}, ${margin.top})`);
+            
+            const x = d3.scaleBand()
+                .domain(churnData.byTenure.map(d => d.tenure))
+                .range([0, width])
+                .padding(0.1);
+            
+            const y = d3.scaleLinear()
+                .domain([0, 55])
+                .range([height, 0]);
+            
+            // X axis
+            svg.append("g")
+                .attr("transform", `translate(0, ${height})`)
+                .call(d3.axisBottom(x));
+            
+            // X axis label
+            svg.append("text")
+                .attr("x", width / 2)
+                .attr("y", height + 45)
+                .attr("text-anchor", "middle")
+                .style("fill", "#888")
+                .text("Tenure (months)");
+            
+            // Y axis
+            svg.append("g")
+                .call(d3.axisLeft(y).tickFormat(d => d + "%"));
+            
+            // Line
+            const line = d3.line()
+                .x(d => x(d.tenure) + x.bandwidth() / 2)
+                .y(d => y(d.churnRate))
+                .curve(d3.curveMonotoneX);
+            
+            svg.append("path")
+                .datum(churnData.byTenure)
+                .attr("fill", "none")
+                .attr("stroke", "#00d4ff")
+                .attr("stroke-width", 3)
+                .attr("d", line);
+            
+            // Points
+            svg.selectAll(".point")
+                .data(churnData.byTenure)
+                .enter()
+                .append("circle")
+                .attr("cx", d => x(d.tenure) + x.bandwidth() / 2)
+                .attr("cy", d => y(d.churnRate))
+                .attr("r", 6)
+                .attr("fill", "#00d4ff")
+                .attr("stroke", "#fff")
+                .attr("stroke-width", 2)
+                .on("mouseover", function(event, d) {
+                    showTooltip(event, `
+                        <strong>Tenure: ${d.tenure} months</strong><br/>
+                        Churn Rate: ${d.churnRate}%<br/>
+                        Customers: ${d.customers.toLocaleString()}
+                    `);
+                })
+                .on("mouseout", hideTooltip);
+        }
+        
+        // Horizontal bar chart - Payment Method
+        function createPaymentChart() {
+            const margin = { top: 30, right: 30, bottom: 40, left: 120 };
+            const width = 450 - margin.left - margin.right;
+            const height = 320 - margin.top - margin.bottom;
+            
+            // Clear existing content
+            d3.select("#bar-chart-payment").selectAll("*").remove();
+            
+            const svg = d3.select("#bar-chart-payment")
+                .append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom)
+                .append("g")
+                .attr("transform", `translate(${margin.left}, ${margin.top})`);
+            
+            const y = d3.scaleBand()
+                .domain(churnData.byPayment.map(d => d.method))
+                .range([0, height])
+                .padding(0.3);
+            
+            const x = d3.scaleLinear()
+                .domain([0, 50])
+                .range([0, width]);
+            
+            // X axis
+            svg.append("g")
+                .attr("transform", `translate(0, ${height})`)
+                .call(d3.axisBottom(x).tickFormat(d => d + "%"));
+            
+            // Y axis
+            svg.append("g")
+                .call(d3.axisLeft(y));
+            
+            // Bars
+            const colorScale = d3.scaleOrdinal()
+                .domain(churnData.byPayment.map(d => d.method))
+                .range(["#ff6b6b", "#4ecdc4", "#ffd93d", "#9b59b6"]);
+            
+            svg.selectAll(".bar")
+                .data(churnData.byPayment)
+                .enter()
+                .append("rect")
+                .attr("class", "bar")
+                .attr("y", d => y(d.method))
+                .attr("x", 0)
+                .attr("height", y.bandwidth())
+                .attr("width", d => x(d.churnRate))
+                .attr("fill", d => colorScale(d.method))
+                .on("mouseover", function(event, d) {
+                    showTooltip(event, `
+                        <strong>${d.method}</strong><br/>
+                        Churn Rate: ${d.churnRate}%<br/>
+                        Churned: ${d.churned.toLocaleString()}<br/>
+                        Retained: ${d.retained.toLocaleString()}
+                    `);
+                })
+                .on("mouseout", hideTooltip);
+            
+            // Labels
+            svg.selectAll(".label")
+                .data(churnData.byPayment)
+                .enter()
+                .append("text")
+                .attr("y", d => y(d.method) + y.bandwidth() / 2 + 4)
+                .attr("x", d => x(d.churnRate) + 5)
+                .style("fill", "#fff")
+                .style("font-size", "11px")
+                .text(d => d.churnRate + "%");
+        }
+        
+        // Donut chart - Internet Service
+        function createInternetChart() {
+            const width = 450;
+            const height = 350;
+            const radius = Math.min(width, height) / 2 - 40;
+            
+            // Clear existing content
+            d3.select("#donut-chart-internet").selectAll("*").remove();
+            
+            const svg = d3.select("#donut-chart-internet")
+                .append("svg")
+                .attr("width", width)
+                .attr("height", height)
+                .append("g")
+                .attr("transform", `translate(${width/2}, ${height/2})`);
+            
+            const pie = d3.pie()
+                .value(d => d.churned + d.retained)
+                .sort(null);
+            
+            const arc = d3.arc()
+                .innerRadius(radius * 0.5)
+                .outerRadius(radius);
+            
+            const slices = svg.selectAll(".slice")
+                .data(pie(churnData.byInternet))
+                .enter()
+                .append("g");
+            
+            slices.append("path")
+                .attr("d", arc)
+                .attr("fill", d => d.data.color)
+                .attr("stroke", "#1a1a2e")
+                .attr("stroke-width", 2)
+                .on("mouseover", function(event, d) {
+                    const total = d.data.churned + d.data.retained;
+                    const churnRate = ((d.data.churned / total) * 100).toFixed(1);
+                    showTooltip(event, `
+                        <strong>${d.data.service}</strong><br/>
+                        Total: ${total.toLocaleString()}<br/>
+                        Churned: ${d.data.churned.toLocaleString()}<br/>
+                        Churn Rate: ${churnRate}%
+                    `);
+                })
+                .on("mouseout", hideTooltip);
+            
+            // Center text
+            svg.append("text")
+                .attr("text-anchor", "middle")
+                .attr("dy", "-0.5em")
+                .style("fill", "#fff")
+                .style("font-size", "14px")
+                .text("Internet");
+            
+            svg.append("text")
+                .attr("text-anchor", "middle")
+                .attr("dy", "1em")
+                .style("fill", "#fff")
+                .style("font-size", "14px")
+                .text("Service");
+            
+            // Legend
+            const legend = svg.selectAll(".legend")
+                .data(churnData.byInternet)
+                .enter()
+                .append("g")
+                .attr("transform", (d, i) => `translate(${radius + 30}, ${-40 + i * 30})`);
+            
+            legend.append("rect")
+                .attr("width", 15)
+                .attr("height", 15)
+                .attr("fill", d => d.color);
+            
+            legend.append("text")
+                .attr("x", 22)
+                .attr("y", 12)
+                .style("fill", "#aaa")
+                .style("font-size", "12px")
+                .text(d => d.service);
+        }
+        
+        // Histogram - Monthly Charges
+        function createChargesHistogram() {
+            const margin = { top: 30, right: 30, bottom: 60, left: 60 };
+            const width = 450 - margin.left - margin.right;
+            const height = 320 - margin.top - margin.bottom;
+            
+            // Clear existing content
+            d3.select("#histogram-charges").selectAll("*").remove();
+            
+            const svg = d3.select("#histogram-charges")
+                .append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom)
+                .append("g")
+                .attr("transform", `translate(${margin.left}, ${margin.top})`);
+            
+            const x = d3.scaleBand()
+                .domain(churnData.monthlyCharges.map(d => d.range))
+                .range([0, width])
+                .padding(0.2);
+            
+            const y = d3.scaleLinear()
+                .domain([0, d3.max(churnData.monthlyCharges, d => d.count)])
+                .range([height, 0]);
+            
+            // X axis
+            svg.append("g")
+                .attr("transform", `translate(0, ${height})`)
+                .call(d3.axisBottom(x));
+            
+            // X axis label
+            svg.append("text")
+                .attr("x", width / 2)
+                .attr("y", height + 45)
+                .attr("text-anchor", "middle")
+                .style("fill", "#888")
+                .text("Monthly Charges ($)");
+            
+            // Y axis
+            svg.append("g")
+                .call(d3.axisLeft(y));
+            
+            // Color scale based on churn rate
+            const colorScale = d3.scaleLinear()
+                .domain([15, 42])
+                .range(["#4ecdc4", "#ff6b6b"]);
+            
+            // Bars
+            svg.selectAll(".bar")
+                .data(churnData.monthlyCharges)
+                .enter()
+                .append("rect")
+                .attr("class", "bar")
+                .attr("x", d => x(d.range))
+                .attr("y", d => y(d.count))
+                .attr("width", x.bandwidth())
+                .attr("height", d => height - y(d.count))
+                .attr("fill", d => colorScale(d.avgChurn))
+                .on("mouseover", function(event, d) {
+                    showTooltip(event, `
+                        <strong>$${d.range}</strong><br/>
+                        Customers: ${d.count.toLocaleString()}<br/>
+                        Avg Churn Rate: ${d.avgChurn}%
+                    `);
+                })
+                .on("mouseout", hideTooltip);
+            
+            // Churn rate annotations
+            svg.selectAll(".churn-label")
+                .data(churnData.monthlyCharges)
+                .enter()
+                .append("text")
+                .attr("x", d => x(d.range) + x.bandwidth() / 2)
+                .attr("y", d => y(d.count) - 5)
+                .attr("text-anchor", "middle")
+                .style("fill", "#fff")
+                .style("font-size", "10px")
+                .text(d => d.avgChurn + "%");
+        }
+        
+        // Charts are initialized after aggregate CSVs load above.
+    </script>
+</body>
+</html>
