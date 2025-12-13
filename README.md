@@ -96,6 +96,19 @@ Telco_Churn_Project/
 
 ---
 
+## Repository & Version Control
+
+**GitHub Repository:** https://github.com/Sankalpa0011/Telco_Churn_Project.git
+
+This project is version-controlled using Git and hosted on GitHub. To clone the repository:
+
+```bash
+git clone https://github.com/Sankalpa0011/Telco_Churn_Project.git
+cd Telco_Churn_Project
+```
+
+---
+
 ## Technologies Used
 
 | Category | Technologies |
