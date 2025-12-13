@@ -22,7 +22,7 @@ def get_mlflow_config() -> Dict[str, Any]:
         'model_registry_name': 'telco_churn_model',
         'tags': {
             'project': 'telco_churn',
-            'module': 'CC6058ES',
+            'module': 'telco_churn',
             'version': '1.0.0'
         }
     }
@@ -227,7 +227,7 @@ def create_mlflow_run_tags(pipeline_name: str, model_type: str = None) -> Dict[s
         'pipeline': pipeline_name,
         'timestamp': datetime.now().isoformat(),
         'project': 'telco_churn',
-        'module': 'CC6058ES'
+        'module': 'telco_churn'
     }
     
     if model_type:

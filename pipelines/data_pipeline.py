@@ -8,7 +8,6 @@ This pipeline handles the complete data processing workflow:
 - Train/test splitting
 - Artifact saving
 
-Module: CC6058ES Big Data and Visualisation
 """
 
 import os

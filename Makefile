@@ -1,4 +1,4 @@
-.PHONY: all clean install setup data-pipeline train-pipeline inference-pipeline run-all help test notebooks kafka-up kafka-down export-aggregates serve-dashboard
+.PHONY: all clean install setup data-pipeline train-pipeline inference-pipeline run-all help test notebooks kafka-up kafka-down export-aggregates serve-dashboard serve-d3-viz-dashboard
 
 # Default Python interpreter
 PYTHON = python
@@ -199,11 +199,6 @@ mlflow-clean:
 	@if exist "mlruns" rd /s /q "mlruns"
 	@echo "MLflow artifacts cleaned!"
 
-# Quick data exploration
-explore:
-	@echo "Starting data exploration..."
-	jupyter notebook notebooks/01_data_exploration.ipynb
-
 # Check project status
 status:
 	@echo "Project Status:"
@@ -224,7 +219,7 @@ export-aggregates:
 	@echo "Aggregates exported to d3_visualizations/data/"
 
 # Serve dashboard locally
-serve-dashboard:
+serve-d3-viz-dashboard:
 	@echo "Starting local HTTP server on port 8000..."
-	@echo "Open http://localhost:8000/d3_visualizations/churn_dashboard.html in your browser"
+	@echo "D3 UI running at http://localhost:8000/d3_visualizations/churn_dashboard.html"
 	venv\Scripts\python.exe -m http.server 8000

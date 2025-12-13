@@ -213,8 +213,8 @@
     </div>
     
     <div class="footer">
-        <p>Student ID: E285181 | Module: CC6058ES Big Data and Visualisation</p>
-        <p>Data Source: Telco Customer Churn Dataset (7,043 records)</p>
+        <p>Student ID: E285181</p>
+        <p>Data Source: Telco Customer Churn Dataset (<span id="total-records">7,032</span> records)</p>
     </div>
     
     <div class="tooltip" id="tooltip" style="display: none;"></div>
@@ -248,10 +248,20 @@
             try {
                 const total = churnData.distribution.reduce((s, x) => s + x.value, 0);
                 const churn = churnData.distribution.find(d => d.label && d.label.toLowerCase().includes('churn'))?.value || 0;
-                const avgRev = ((churnData.monthlyCharges.reduce((s,d)=>s + (d.count * 0),0))/Math.max(total,1)).toFixed(2);
+                // Calculate average monthly revenue from bins (approximate midpoint of each range)
+                let revenueSum = 0;
+                churnData.monthlyCharges.forEach(d => {
+                    const parts = String(d.range).split('-').map(Number);
+                    const midpoint = parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1]) ? (parts[0] + parts[1]) / 2 : 0;
+                    revenueSum += midpoint * (d.count || 0);
+                });
+                const avgRev = total > 0 ? (revenueSum / total).toFixed(2) : '0.00';
+
                 d3.select('#total-customers').text(total.toLocaleString());
                 d3.select('#churn-rate').text(((churn/Math.max(total,1))*100).toFixed(2) + '%');
-                // avg revenue unchanged (calculated elsewhere) - leave existing value
+                d3.select('#avg-revenue').text('$' + avgRev);
+                d3.select('#high-risk').text(churn.toLocaleString());
+                d3.select('#total-records').text(total.toLocaleString());
             } catch(e) { console.warn('Metrics update skipped', e); }
 
             // Create all charts using precomputed aggregates

@@ -147,8 +147,11 @@ cd Telco_Churn_Project
 
 | Factor | Churn Rate | Insight |
 |--------|-----------|---------|
-| Month-to-month contract | 42.7% | Highest risk |
-| Fiber optic internet | 41.9% | Higher than DSL |
+| Month-to-month contract | 42.7% | Highest risk || One-year contract | 11.3% | Moderate risk |
+| Two-year contract | 2.8% | Lowest risk |
+| Fiber optic internet | 41.9% | Service quality issue |
+| DSL internet | 19.0% | Lower than fiber |
+| Senior citizens | 41.7% | Higher risk group || Fiber optic internet | 41.9% | Higher than DSL |
 | Electronic check payment | 45.3% | Less committed |
 | Tenure < 12 months | 47.4% | New customers at risk |
 | No tech support | 41.7% | Support matters |
@@ -214,11 +217,18 @@ Open notebooks in Jupyter or VS Code and run cells sequentially.
 
 ### 5. Kafka Streaming Setup
 
+Before starting Kafka, ensure Docker is running on your machine:
+
+- **Windows / macOS:** Start Docker Desktop and make sure the Docker Engine is running. On Windows, enable the WSL2 backend if using WSL.
+- **Linux:** Ensure the Docker Engine is started (e.g., `systemctl start docker`).
+
 Start Kafka services for real-time streaming:
 
 ```bash
-# Start Kafka using Docker Compose
-docker-compose up -d
+# Start Kafka using Docker Compose (or use Makefile alias)
+make kafka-up
+# or
+# docker-compose up -d
 
 # Start producer to send customer events
 python kafka/producer_service.py
@@ -226,9 +236,11 @@ python kafka/producer_service.py
 # Start consumer to process events and predict churn
 python kafka/consumer_service.py
 
-# Access Kafka UI
+# Access Kafka UI (Kafka UI service runs on port 8080 in docker-compose)
 Open browser: http://localhost:8080
 ```
+
+The `make kafka-up` command uses Docker Compose; you can monitor containers in Docker Desktop (Windows/macOS) or via `docker ps` on Linux. If you need to reset the Kafka environment, use `make kafka-reset` to wipe local data and start fresh.
 
 ### 6. D3.js Visualization Dashboard
 
@@ -326,7 +338,7 @@ This project is available for educational and research purposes.
 
 ## Contact
 
-**Author:** Sankalpa (Student ID: E285181)  
+**Author:** Kavindu Sankalpa  
 **Repository:** https://github.com/Sankalpa0011/Telco_Churn_Project  
 **Date:** December 2025
 

@@ -8,7 +8,6 @@ This pipeline handles the complete model training workflow:
 - Saving trained models and metrics
 - MLflow experiment tracking
 
-Module: CC6058ES Big Data and Visualisation
 """
 
 import os

@@ -1,5 +1,4 @@
 # Telco Customer Churn Project Configuration
-# Module: CC6058ES Big Data and Visualisation
 
 # Data Configuration
 data:
@@ -113,7 +112,7 @@ mlflow:
   
   tags:
     project: "telco_churn"
-    module: "CC6058ES"
+    module: "telco_churn"
     version: "1.0.0"
 
 # Logging Configuration

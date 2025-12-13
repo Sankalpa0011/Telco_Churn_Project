@@ -76,6 +76,13 @@ def get_default_config() -> Dict[str, Any]:
             'topic': 'customer-events',
             'consumer_group': 'churn-predictor'
         }
+        ,
+        'currency': {
+            'base': 'USD',
+            'target': 'USD',
+            'symbol': '$',
+            'conversion_rate': 1.0
+        }
     }
 
 

@@ -1,4 +1,4 @@
 contract,total_customers,churned,retained,churnRate
 Month-to-month,3875,1655,2220,42.7
-One year,1473,166,1307,11.3
-Two year,1695,48,1647,2.8
+One year,1472,166,1306,11.3
+Two year,1685,48,1637,2.8

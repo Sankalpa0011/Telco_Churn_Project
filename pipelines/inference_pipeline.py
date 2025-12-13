@@ -7,7 +7,6 @@ This pipeline handles batch and real-time inference:
 - Batch processing capabilities
 - Prediction logging and monitoring
 
-Module: CC6058ES Big Data and Visualisation
 """
 
 import os
