@@ -1,11 +1,4 @@
 # Telco Customer Churn Analysis Project
-## Big Data and Visualisation Coursework (CC6058ES)
-
-**Student ID:** E285181  
-**Module:** CC6058ES Big Data and Visualisation  
-**Submission Date:** December 2025
-
----
 
 ## Project Overview
 
@@ -22,7 +15,7 @@ This project applies data processing and visualization techniques to predict cus
 
 ### Dataset
 
-- **Source:** Telco Customer Churn Dataset
+- **Source:** [Telco Customer Churn Dataset (Kaggle)](https://www.kaggle.com/datasets/blastchar/telco-customer-churn)
 - **Records:** 7,043 customers
 - **Features:** 21 attributes including demographics, services, and billing
 - **Target Variable:** Churn (Yes/No)
@@ -122,58 +115,6 @@ cd Telco_Churn_Project
 
 ---
 
-## Assessment Criteria Mapping
-
-### 1. Business Problem Context (15%)
-
-The project addresses **customer churn prediction** for a telecommunications company:
-
-- **Problem Statement:** Predict which customers are likely to churn to enable proactive retention strategies
-- **Business Impact:** Reducing churn by 5% can increase profits by 25-95%
-- **Key Questions:**
-  - What factors drive customer churn?
-  - Which customer segments are at highest risk?
-  - How can real-time monitoring improve retention?
-
-### 2. Data Processing and Querying (20%)
-
-**Evidence Location:** `notebooks/`, `pipelines/`, `sql/`
-
-- **Data Ingestion:** CSV loading with Pandas and PySpark
-- **Data Cleaning:** Missing value handling, type conversions
-- **Feature Engineering:** Tenure binning, service adoption scoring
-- **SQL Queries:** Comprehensive analysis in `sql/data_processing_queries.sql`
-- **Spark Processing:** Distributed processing in `pipelines/spark_data_pipeline.py`
-
-### 3. Real-Time Data Streaming (15%)
-
-**Evidence Location:** `kafka/`
-
-- **Publish/Subscribe Pipeline:** Apache Kafka implementation
-- **Producer Service:** Streams customer events from dataset
-- **Consumer Service:** Real-time churn prediction
-- **Architecture Diagram:** See Section below
-
-### 4. Visualization and Reporting (30%)
-
-**Evidence Location:** `r_scripts/`, `d3_visualizations/`, `notebooks/`
-
-| Tool | Implementation |
-|------|---------------|
-| **R** | Decision Trees, Naive Bayes, Clustering (`r_scripts/churn_visualization.R`) |
-| **D3.js** | Interactive dashboard (`d3_visualizations/churn_dashboard.html`) |
-| **Python** | EDA visualizations in Jupyter notebooks |
-
-### 5. Critical Evaluation and Reflection (20%)
-
-See written report for detailed analysis of:
-- Data quality challenges
-- Model performance comparison
-- Ethical considerations
-- Scalability recommendations
-
----
-
 ## Real-Time Streaming Architecture
 
 ```
@@ -223,20 +164,11 @@ See written report for detailed analysis of:
 
 ---
 
-## Visualization Comparison
-
-| Aspect | R | Tableau | D3.js |
-|--------|---|---------|-------|
-| **Strengths** | Statistical modeling, reproducibility | Ease of use, interactivity | Full customization, web integration |
-| **Limitations** | Steeper learning curve | License cost | Requires JavaScript knowledge |
-| **Best For** | Statistical analysis, ML visualization | Business dashboards | Custom web visualizations |
-| **Used In Project** | Decision Trees, Naive Bayes, Clustering | N/A | Interactive churn dashboard |
-
 ## Getting Started
 
 ### 1. Clone the Repository
 ```bash
-git clone <repo-url>
+git clone https://github.com/Sankalpa0011/Telco_Churn_Project.git
 cd Telco_Churn_Project
 ```
 
@@ -280,20 +212,121 @@ After running the pipeline, you will find:
 
 Open notebooks in Jupyter or VS Code and run cells sequentially.
 
-### 5. Model Files
-Trained models are saved in the `models/` directory for both balanced and imbalanced datasets, with filenames indicating the algorithm and data type.
+### 5. Kafka Streaming Setup
 
-## Key Features
-- Handles both imbalanced and balanced datasets
-- Multiple ML algorithms: Logistic Regression, Decision Tree, Random Forest, XGBoost, CatBoost
-- Model evaluation with accuracy, precision, recall, F1-score, and confusion matrix
-- Model persistence using joblib
-- Well-organized artifacts and reproducible workflow
+Start Kafka services for real-time streaming:
 
-## Requirements
-- Python 3.7+
-- See `requirements.txt` for all dependencies
+```bash
+# Start Kafka using Docker Compose
+docker-compose up -d
 
-## References
-- [Kaggle Dataset: Telco Customer Churn](https://www.kaggle.com/datasets/blastchar/telco-customer-churn)
+# Start producer to send customer events
+python kafka/producer_service.py
+
+# Start consumer to process events and predict churn
+python kafka/consumer_service.py
+
+# Access Kafka UI
+Open browser: http://localhost:8080
+```
+
+### 6. D3.js Visualization Dashboard
+
+Serve the interactive churn dashboard:
+
+```bash
+# Export aggregated data for D3 dashboard
+python scripts/export_aggregates.py
+
+# Serve D3 dashboard (Python 3)
+python -m http.server 8000 --directory d3_visualizations
+
+# Access dashboard
+Open browser: http://localhost:8000/churn_dashboard.html
+```
+
+### 7. R Visualizations
+
+Generate statistical visualizations using R:
+
+```bash
+# Install R packages (first time only)
+Rscript -e "install.packages(c('ggplot2', 'rpart', 'e1071', 'caret', 'corrplot', 'factoextra'))"
+
+# Run R visualization script
+Rscript r_scripts/churn_visualization.R
+
+# Outputs saved to: artifacts/r_visualizations/
+```
+
+---
+
+## Project Features
+
+- **Distributed Data Processing:** Apache Spark (PySpark) for scalable ETL pipelines
+- **Real-Time Streaming:** Apache Kafka for customer event processing
+- **Multiple ML Models:** Logistic Regression, Decision Tree, Random Forest, XGBoost, CatBoost
+- **Advanced Visualizations:** R (ggplot2) for statistical plots, D3.js for interactive dashboards
+- **Experiment Tracking:** MLflow for model versioning and metrics
+- **SQL Analytics:** Comprehensive SQL queries for data exploration
+- **Balanced/Imbalanced Datasets:** Handles class imbalance with SMOTE
+- **Model Evaluation:** Accuracy, precision, recall, F1-score, ROC curves, confusion matrices
+- **Reproducible Workflow:** Containerized with Docker, automated with Makefiles
+
+---
+
+## System Requirements
+
+- **Python:** 3.8 or higher
+- **Docker:** For Kafka services (optional but recommended)
+- **R:** 4.0+ for statistical visualizations
+- **Memory:** Minimum 8GB RAM for Spark processing
+- **OS:** Windows, macOS, or Linux
+
+### Python Dependencies
+
+See `requirements.txt` for complete list. Key packages:
+- `pyspark` - Distributed data processing
+- `kafka-python` - Kafka client
+- `pandas`, `numpy` - Data manipulation
+- `scikit-learn`, `xgboost`, `catboost` - Machine learning
+- `mlflow` - Experiment tracking
+- `jupyter` - Interactive notebooks
+
+---
+
+## Project Architecture
+
+The project follows a modular architecture:
+
+1. **Data Layer:** Raw CSV → Spark processing → Processed datasets
+2. **Streaming Layer:** Kafka producers → Topics → Consumers
+3. **Model Layer:** Training pipelines → MLflow tracking → Saved models
+4. **Visualization Layer:** R scripts → Static plots, D3.js → Interactive dashboards
+5. **Orchestration:** Docker Compose for Kafka, Make for pipeline automation
+
+---
+
+## References & Resources
+
+- **Dataset:** [Telco Customer Churn (Kaggle)](https://www.kaggle.com/datasets/blastchar/telco-customer-churn)
+- **GitHub Repository:** [Sankalpa0011/Telco_Churn_Project](https://github.com/Sankalpa0011/Telco_Churn_Project)
+- **Apache Spark:** [spark.apache.org](https://spark.apache.org/)
+- **Apache Kafka:** [kafka.apache.org](https://kafka.apache.org/)
+- **MLflow:** [mlflow.org](https://mlflow.org/)
+- **D3.js:** [d3js.org](https://d3js.org/)
+
+---
+
+## License
+
+This project is available for educational and research purposes.
+
+---
+
+## Contact
+
+**Author:** Sankalpa (Student ID: E285181)  
+**Repository:** https://github.com/Sankalpa0011/Telco_Churn_Project  
+**Date:** December 2025
 
