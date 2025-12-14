@@ -178,6 +178,10 @@
             <div class="metric-value" style="color: #ffd93d;" id="high-risk">1,869</div>
             <div class="metric-label">High Risk Customers</div>
         </div>
+        <div class="metric-card" style="display:flex;flex-direction:column;gap:8px;align-items:center;justify-content:center;">
+            <button id="copy-link" style="padding:6px 10px;border-radius:6px;border:none;background:#ffd93d;color:#0b1a1e;cursor:pointer;">Copy Shareable Link</button>
+            <button id="reset-filters" style="padding:6px 10px;border-radius:6px;border:none;background:#4ecdc4;color:#0b1a1e;cursor:pointer;">Reset Filters</button>
+        </div>
     </div>
     
     <div class="charts-grid">
@@ -222,15 +226,28 @@
     <script>
         // Load precomputed aggregate CSVs (exported by scripts/export_aggregates.py)
         let churnData = {};
+        // Interactive filter state
+        const filterState = { 
+            status: null,        // 'Retained' | 'Churned' 
+            contract: null,      // 'Month-to-month' | 'One year' | 'Two year'
+            payment: null,       // 'Electronic check' | 'Mailed check' | 'Bank transfer (automatic)' | 'Credit card (automatic)'
+            internet: null,      // 'Fiber optic' | 'DSL' | 'No'
+            tenure: null,        // '0-12' | '13-24' | '25-36' | '37-48' | '49-60' | '61+'
+            charges: null        // '18-30' | '31-50' | '51-70' | '71-90' | '91-110' | '111-118'
+        };
+        // Health gradient color scale (green → red) by churn rate
+        const healthColor = d3.scaleLinear().domain([0, 50]).range(["#28a745", "#dc3545"]).clamp(true);
 
+        // Load aggregate CSVs AND attempt to load raw dataset for richer client-side filtering
         Promise.all([
             d3.csv("./data/churn_distribution.csv"),
             d3.csv("./data/contract_distribution.csv"),
             d3.csv("./data/tenure_buckets.csv"),
             d3.csv("./data/payment_methods.csv"),
             d3.csv("./data/internet_service.csv"),
-            d3.csv("./data/monthly_charges_bins.csv")
-        ]).then(function([dist, contract, tenure, payment, internet, monthly]) {
+            d3.csv("./data/monthly_charges_bins.csv"),
+            d3.csv("../data/raw/Telco_Customer_Churn_Dataset.csv") // optional; used for client-side recompute/export
+        ]).then(function([dist, contract, tenure, payment, internet, monthly, raw]) {
             // Map loaded CSVs to churnData structure expected by chart functions
             churnData.distribution = dist.map(d => ({ label: d.label || d.Label || d.Label, value: +d.value, color: d.color || d.Color || (d.label && d.label.toLowerCase().includes('churn') ? '#ff6b6b' : '#4ecdc4') }));
 
@@ -243,6 +260,27 @@
             churnData.byInternet = internet.map(d => ({ service: d.service, churned: +d.churned, retained: +d.retained, color: d.color || '#ffd93d' }));
 
             churnData.monthlyCharges = monthly.map(d => ({ range: d.range, count: +d.count, avgChurn: +d.avgChurn }));
+
+            // Raw rows loaded? Prepare for client-side filtering and aggregations
+            let rawRows = [];
+            if (raw && raw.length && raw[0].customerID) {
+                rawRows = raw.map(r => Object.assign({}, r));
+                // Basic cleaning to mirror export_aggregates.py
+                rawRows = rawRows.filter(r => String(r.TotalCharges).trim() !== "");
+                rawRows.forEach(r => {
+                    r.tenure = +r.tenure || 0;
+                    r.MonthlyCharges = parseFloat(r.MonthlyCharges) || 0;
+                    r.ChurnFlag = (String(r.Churn).trim().toLowerCase() === 'yes') ? 1 : 0;
+                });
+            }
+
+            // If row-level data available, compute all aggregates from rows (enables combinational filters)
+            if (rawRows.length > 0) {
+                // expose raw rows globally for filter handlers
+                window.__rawRows = rawRows;
+                computeAggregatesFromRows(rawRows);
+                updateTopMetrics(rawRows);
+            }
 
             // Update simple top-level metrics if present
             try {
@@ -264,13 +302,21 @@
                 d3.select('#total-records').text(total.toLocaleString());
             } catch(e) { console.warn('Metrics update skipped', e); }
 
-            // Create all charts using precomputed aggregates
+            // Create all charts using current aggregates
             createPieChart();
             createContractChart();
             createTenureChart();
             createPaymentChart();
             createInternetChart();
             createChargesHistogram();
+
+            // Wire control buttons
+            d3.select('#copy-link').on('click', () => { copyShareableLink(); });
+            d3.select('#reset-filters').on('click', () => { resetFilters(); });
+
+            // Apply initial filters (none) or from URL state
+            loadFiltersFromURL();
+            applyFilters(false);
 
             console.log('Dashboard loaded from aggregate CSVs');
         }).catch(function(error) {
@@ -378,6 +424,151 @@
                 .attr("y", 12)
                 .style("fill", "#aaa")
                 .text(d => `${d.label}: ${d.value.toLocaleString()}`);
+            // make slices clickable for filtering (toggle selection)
+            slices.selectAll('path').on('click.filter', function(event, d) {
+                toggleSelection('status', d.data.label);
+                applyFilters(true);
+            });
+        }
+
+        // Compute aggregates from raw rows (can be used both for initial load and after filtering)
+        function computeAggregatesFromRows(rows, fromFilter=false) {
+            // distribution
+            const churned = rows.reduce((s, r) => s + (r.ChurnFlag || 0), 0);
+            const retained = rows.length - churned;
+            churnData.distribution = [
+                { label: 'Retained', value: retained, color: '#4ecdc4' },
+                { label: 'Churned', value: churned, color: '#ff6b6b' }
+            ];
+
+            // byContract
+            const byContractMap = new Map();
+            rows.forEach(r => {
+                const key = r.Contract || r.contract || 'Unknown';
+                if (!byContractMap.has(key)) byContractMap.set(key, { contract: key, churned: 0, retained: 0 });
+                const cur = byContractMap.get(key);
+                if (r.ChurnFlag) cur.churned += 1; else cur.retained += 1;
+            });
+            churnData.byContract = Array.from(byContractMap.values()).map(d => ({ ...d, churnRate: +(d.churned / (d.churned + d.retained) * 100).toFixed(1) }));
+
+            // tenure buckets (use same buckets as export script)
+            const buckets = [ [0,12,'0-12'], [13,24,'13-24'], [25,48,'25-48'], [49,60,'49-60'], [61,9999,'61-72'] ];
+            churnData.byTenure = buckets.map(([lo,hi,label]) => {
+                const sel = rows.filter(r => r.tenure >= lo && r.tenure <= hi);
+                const customers = sel.length;
+                const churned = sel.reduce((s, r) => s + (r.ChurnFlag||0), 0);
+                const churnRate = customers>0 ? +(churned/customers*100).toFixed(1) : 0;
+                return { tenure: label, customers, churnRate };
+            });
+
+            // payment methods
+            const payMap = new Map();
+            rows.forEach(r => { const k = r.PaymentMethod || r.method || 'Unknown'; if (!payMap.has(k)) payMap.set(k,{ method:k, churned:0, retained:0 }); const cur=payMap.get(k); if (r.ChurnFlag) cur.churned++; else cur.retained++; });
+            churnData.byPayment = Array.from(payMap.values()).map(d => ({ ...d, churnRate: +(d.churned/(d.churned+d.retained)*100).toFixed(1) }));
+
+            // internet service
+            const inetMap = new Map();
+            rows.forEach(r => { const k = r.InternetService || r.service || 'No'; if (!inetMap.has(k)) inetMap.set(k,{ service:k, churned:0, retained:0 }); const cur=inetMap.get(k); if (r.ChurnFlag) cur.churned++; else cur.retained++; });
+            churnData.byInternet = Array.from(inetMap.values()).map(d=>({ ...d, color: (d.service && d.service.indexOf('Fiber')>-1)?'#ff6b6b':(d.service && d.service.indexOf('DSL')>-1)?'#4ecdc4':'#ffd93d', churnRate: +(d.churned/(d.churned+d.retained)*100).toFixed(1) }));
+
+            // monthly charges bins - reuse the CSV bins if available to keep labels consistent
+            const bins = churnData.monthlyCharges && churnData.monthlyCharges.length ? churnData.monthlyCharges.map(b => {
+                const parts = String(b.range).split('-').map(p => parseFloat(p)); return { left: parts[0], right: parts[1], label: b.range };
+            }) : null;
+
+            if (bins) {
+                const out = bins.map(b => ({ range: b.label, count: 0, avgChurn: 0 }));
+                bins.forEach((b, i) => {
+                    const sel = rows.filter(r => r.MonthlyCharges >= b.left && r.MonthlyCharges <= b.right);
+                    const customers = sel.length;
+                    const churned = sel.reduce((s, r) => s + (r.ChurnFlag||0), 0);
+                    const churnRate = customers>0 ? +(churned/customers*100).toFixed(1) : 0;
+                    out[i].count = customers;
+                    out[i].avgChurn = churnRate;
+                });
+                churnData.monthlyCharges = out;
+            }
+
+            // Update top metrics if called by filter
+            if (fromFilter) updateTopMetrics(rows);
+        }
+
+        // Filter raw rows by selection state (logical AND across dimensions, OR within dimension)
+        function filterRows(rows) {
+            return rows.filter(r => {
+                // status
+                if (filterState.status && filterState.status.size>0) {
+                    const label = r.ChurnFlag ? 'Churned' : 'Retained';
+                    if (!filterState.status.has(label)) return false;
+                }
+                if (filterState.contract && filterState.contract.size>0) {
+                    if (!filterState.contract.has(r.Contract)) return false;
+                }
+                if (filterState.payment && filterState.payment.size>0) {
+                    if (!filterState.payment.has(r.PaymentMethod)) return false;
+                }
+                if (filterState.internet && filterState.internet.size>0) {
+                    if (!filterState.internet.has(r.InternetService)) return false;
+                }
+                if (filterState.tenure && filterState.tenure.size>0) {
+                    const bucket = getTenureLabel(r.tenure);
+                    if (!filterState.tenure.has(bucket)) return false;
+                }
+                if (filterState.charges && filterState.charges.size>0) {
+                    const range = getChargeRangeLabel(r.MonthlyCharges);
+                    if (!filterState.charges.has(range)) return false;
+                }
+                return true;
+            });
+        }
+
+        function getTenureLabel(t) {
+            if (t<=12) return '0-12';
+            if (t<=24) return '13-24';
+            if (t<=48) return '25-48';
+            if (t<=60) return '49-60';
+            return '61-72';
+        }
+
+        function getChargeRangeLabel(value) {
+            for (const b of churnData.monthlyCharges) {
+                const parts = String(b.range).split('-').map(p => parseFloat(p));
+                if (value >= parts[0] && value <= parts[1]) return b.range;
+            }
+            return null;
+        }
+
+        function updateTopMetrics(rows) {
+            const total = rows.length;
+            const churn = rows.reduce((s, r) => s + (r.ChurnFlag||0), 0);
+            const revenueSum = rows.reduce((s, r) => s + (parseFloat(r.MonthlyCharges)||0), 0);
+            const avgRev = total>0 ? (revenueSum/total).toFixed(2) : '0.00';
+            d3.select('#total-customers').text(total.toLocaleString());
+            d3.select('#churn-rate').text(((churn/Math.max(total,1))*100).toFixed(2) + '%');
+            d3.select('#avg-revenue').text('$' + avgRev);
+            d3.select('#high-risk').text(churn.toLocaleString());
+            d3.select('#total-records').text(total.toLocaleString());
+        }
+
+        // Shareable link helpers
+        function updateURLFromFilters() {
+            const params = new URLSearchParams();
+            Object.entries(filterState).forEach(([k,v]) => { if (v && v.size) params.set(k, Array.from(v).join(',')); });
+            const newUrl = window.location.pathname + '?' + params.toString();
+            window.history.replaceState({}, '', newUrl);
+        }
+
+        function loadFiltersFromURL() {
+            const params = new URLSearchParams(window.location.search);
+            for (const [k,v] of params.entries()) {
+                if (!filterState[k]) filterState[k] = new Set();
+                v.split(',').forEach(val => { if (val) filterState[k].add(decodeURIComponent(val)); });
+            }
+        }
+
+        function copyShareableLink() {
+            updateURLFromFilters();
+            navigator.clipboard.writeText(window.location.href).then(()=> alert('Link copied to clipboard')); 
         }
         
         // Bar chart - Churn by Contract
@@ -401,8 +592,13 @@
                 .range([0, width])
                 .padding(0.3);
             
+            // Switch to count mode if status filter active (avoids 0%/100% issue)
+            const statusFilterActive = filterState.status && filterState.status.size > 0;
+            const yMetric = statusFilterActive ? 'count' : 'rate';
+            const maxCount = statusFilterActive ? d3.max(churnData.byContract, d => d.churned + d.retained) : 50;
+            
             const y = d3.scaleLinear()
-                .domain([0, 50])
+                .domain([0, statusFilterActive ? maxCount : 50])
                 .range([height, 0]);
             
             // X axis
@@ -415,7 +611,7 @@
             
             // Y axis
             svg.append("g")
-                .call(d3.axisLeft(y).tickFormat(d => d + "%"));
+                .call(d3.axisLeft(y).tickFormat(d => statusFilterActive ? d : d + "%"));
             
             // Y axis label
             svg.append("text")
@@ -424,7 +620,7 @@
                 .attr("x", -height / 2)
                 .attr("text-anchor", "middle")
                 .style("fill", "#888")
-                .text("Churn Rate (%)");
+                .text(statusFilterActive ? "Customer Count" : "Churn Rate (%)");
             
             // Bars
             svg.selectAll(".bar")
@@ -433,10 +629,10 @@
                 .append("rect")
                 .attr("class", "bar")
                 .attr("x", d => x(d.contract))
-                .attr("y", d => y(d.churnRate))
+                .attr("y", d => statusFilterActive ? y(d.churned + d.retained) : y(d.churnRate))
                 .attr("width", x.bandwidth())
-                .attr("height", d => height - y(d.churnRate))
-                .attr("fill", (d, i) => d3.schemeCategory10[i])
+                .attr("height", d => statusFilterActive ? height - y(d.churned + d.retained) : height - y(d.churnRate))
+                .attr("fill", d => healthColor(d.churnRate))
                 .on("mouseover", function(event, d) {
                     showTooltip(event, `
                         <strong>${d.contract}</strong><br/>
@@ -445,7 +641,11 @@
                         Retained: ${d.retained.toLocaleString()}
                     `);
                 })
-                .on("mouseout", hideTooltip);
+                .on("mouseout", hideTooltip)
+                .on("click", function(event, d) {
+                    toggleSelection('contract', d.contract);
+                    applyFilters(true);
+                });
             
             // Labels
             svg.selectAll(".label")
@@ -453,11 +653,121 @@
                 .enter()
                 .append("text")
                 .attr("x", d => x(d.contract) + x.bandwidth() / 2)
-                .attr("y", d => y(d.churnRate) - 5)
+                .attr("y", d => statusFilterActive ? y(d.churned + d.retained) - 5 : y(d.churnRate) - 5)
                 .attr("text-anchor", "middle")
                 .style("fill", "#fff")
                 .style("font-size", "12px")
-                .text(d => d.churnRate + "%");
+                .text(d => statusFilterActive ? (d.churned + d.retained).toLocaleString() : d.churnRate + "%");
+        }
+
+        // Helper to toggle multi-selection (stores as Set)
+        function toggleSelection(dim, value) {
+            if (!filterState[dim]) filterState[dim] = new Set();
+            if (filterState[dim].has(value)) filterState[dim].delete(value);
+            else filterState[dim].add(value);
+            updateURLFromFilters();
+        }
+
+        // Reset all filters
+        function resetFilters() {
+            Object.keys(filterState).forEach(k => filterState[k] = new Set());
+            updateURLFromFilters();
+            // If we have rawRows, recompute from all rows; else just clear visual filters
+            applyFilters(true);
+        }
+
+        // Apply filters and animate transitions across charts
+        function applyFilters(animate = false) {
+            const duration = animate ? 400 : 0;
+            const anyFilterActive = Object.values(filterState).some(s => s && s.size && s.size>0);
+
+            // If raw row-level data exists, recompute aggregates based on current filter set
+            if (typeof computeAggregatesFromRows === 'function' && window.__rawRows && window.__rawRows.length) {
+                const filtered = filterRows(window.__rawRows);
+                computeAggregatesFromRows(filtered, true);
+                // Recreate charts from new aggregates
+                createPieChart();
+                createContractChart();
+                createTenureChart();
+                createPaymentChart();
+                createInternetChart();
+                createChargesHistogram();
+                // Update top-level metrics
+                updateTopMetrics(filtered);
+                return; // visual updates handled by recreating charts
+            }
+
+            // Fallback: no row-level data - perform opacity fades only
+
+            // Pie chart slices opacity by selected status
+            d3.select("#pie-chart").selectAll(".pie-slice path")
+                .transition().duration(duration)
+                .style("opacity", function() {
+                    const d = d3.select(this).datum();
+                    if (!filterState.status) return 1;
+                    return (d.data.label === filterState.status) ? 1 : 0.25;
+                })
+                .attr("stroke-width", function() {
+                    const d = d3.select(this).datum();
+                    return (!filterState.status || d.data.label === filterState.status) ? 3 : 1;
+                });
+
+            // Contract bars highlight
+            d3.select("#bar-chart-contract").selectAll(".bar")
+                .transition().duration(duration)
+                .style("opacity", function() {
+                    const d = d3.select(this).datum();
+                    if (!filterState.contract) return 1;
+                    return (d.contract === filterState.contract) ? 1 : 0.25;
+                })
+                .attr("fill", function() {
+                    const d = d3.select(this).datum();
+                    return healthColor(d.churnRate);
+                });
+
+            // Tenure points highlight by selected bucket
+            d3.select("#line-chart-tenure").selectAll("circle")
+                .transition().duration(duration)
+                .style("opacity", function() {
+                    const d = d3.select(this).datum();
+                    if (!filterState.tenure) return anyFilterActive ? 0.7 : 1;
+                    return (d.tenure === filterState.tenure) ? 1 : 0.25;
+                })
+                .attr("r", function() {
+                    const d = d3.select(this).datum();
+                    return (!filterState.tenure || d.tenure === filterState.tenure) ? 7 : 5;
+                });
+
+            // Payment bars highlight by selected method
+            d3.select("#bar-chart-payment").selectAll(".bar")
+                .transition().duration(duration)
+                .style("opacity", function() {
+                    const d = d3.select(this).datum();
+                    if (!filterState.payment) return anyFilterActive ? 0.8 : 1;
+                    return (d.method === filterState.payment) ? 1 : 0.25;
+                });
+
+            // Internet donut segments highlight by selected service
+            d3.select("#donut-chart-internet").selectAll("path")
+                .transition().duration(duration)
+                .style("opacity", function() {
+                    const d = d3.select(this).datum();
+                    if (!filterState.internet) return anyFilterActive ? 0.85 : 1;
+                    return (d.data.service === filterState.internet) ? 1 : 0.25;
+                })
+                .attr("stroke-width", function() {
+                    const d = d3.select(this).datum();
+                    return (!filterState.internet || d.data.service === filterState.internet) ? 3 : 1;
+                });
+
+            // Monthly charges histogram bars highlight by selected range
+            d3.select("#histogram-charges").selectAll(".bar")
+                .transition().duration(duration)
+                .style("opacity", function() {
+                    const d = d3.select(this).datum();
+                    if (!filterState.charges) return anyFilterActive ? 0.85 : 1;
+                    return (d.range === filterState.charges) ? 1 : 0.25;
+                });
         }
         
         // Line chart - Churn by Tenure
@@ -481,8 +791,11 @@
                 .range([0, width])
                 .padding(0.1);
             
+            const statusFilterActive = filterState.status && filterState.status.size > 0;
+            const maxCount = statusFilterActive ? d3.max(churnData.byTenure, d => d.customers) : 55;
+            
             const y = d3.scaleLinear()
-                .domain([0, 55])
+                .domain([0, statusFilterActive ? maxCount : 55])
                 .range([height, 0]);
             
             // X axis
@@ -500,12 +813,12 @@
             
             // Y axis
             svg.append("g")
-                .call(d3.axisLeft(y).tickFormat(d => d + "%"));
+                .call(d3.axisLeft(y).tickFormat(d => statusFilterActive ? d : d + "%"));
             
             // Line
             const line = d3.line()
                 .x(d => x(d.tenure) + x.bandwidth() / 2)
-                .y(d => y(d.churnRate))
+                .y(d => statusFilterActive ? y(d.customers) : y(d.churnRate))
                 .curve(d3.curveMonotoneX);
             
             svg.append("path")
@@ -521,7 +834,7 @@
                 .enter()
                 .append("circle")
                 .attr("cx", d => x(d.tenure) + x.bandwidth() / 2)
-                .attr("cy", d => y(d.churnRate))
+                .attr("cy", d => statusFilterActive ? y(d.customers) : y(d.churnRate))
                 .attr("r", 6)
                 .attr("fill", "#00d4ff")
                 .attr("stroke", "#fff")
@@ -533,7 +846,11 @@
                         Customers: ${d.customers.toLocaleString()}
                     `);
                 })
-                .on("mouseout", hideTooltip);
+                .on("mouseout", hideTooltip)
+                .on("click", function(event, d) {
+                    toggleSelection('tenure', d.tenure);
+                    applyFilters(true);
+                });
         }
         
         // Horizontal bar chart - Payment Method
@@ -557,14 +874,17 @@
                 .range([0, height])
                 .padding(0.3);
             
+            const statusFilterActive = filterState.status && filterState.status.size > 0;
+            const maxCount = statusFilterActive ? d3.max(churnData.byPayment, d => d.churned + d.retained) : 50;
+            
             const x = d3.scaleLinear()
-                .domain([0, 50])
+                .domain([0, statusFilterActive ? maxCount : 50])
                 .range([0, width]);
             
             // X axis
             svg.append("g")
                 .attr("transform", `translate(0, ${height})`)
-                .call(d3.axisBottom(x).tickFormat(d => d + "%"));
+                .call(d3.axisBottom(x).tickFormat(d => statusFilterActive ? d : d + "%"));
             
             // Y axis
             svg.append("g")
@@ -583,7 +903,7 @@
                 .attr("y", d => y(d.method))
                 .attr("x", 0)
                 .attr("height", y.bandwidth())
-                .attr("width", d => x(d.churnRate))
+                .attr("width", d => statusFilterActive ? x(d.churned + d.retained) : x(d.churnRate))
                 .attr("fill", d => colorScale(d.method))
                 .on("mouseover", function(event, d) {
                     showTooltip(event, `
@@ -593,7 +913,11 @@
                         Retained: ${d.retained.toLocaleString()}
                     `);
                 })
-                .on("mouseout", hideTooltip);
+                .on("mouseout", hideTooltip)
+                .on("click", function(event, d) {
+                    toggleSelection('payment', d.method);
+                    applyFilters(true);
+                });
             
             // Labels
             svg.selectAll(".label")
@@ -601,10 +925,10 @@
                 .enter()
                 .append("text")
                 .attr("y", d => y(d.method) + y.bandwidth() / 2 + 4)
-                .attr("x", d => x(d.churnRate) + 5)
+                .attr("x", d => statusFilterActive ? x(d.churned + d.retained) + 5 : x(d.churnRate) + 5)
                 .style("fill", "#fff")
                 .style("font-size", "11px")
-                .text(d => d.churnRate + "%");
+                .text(d => statusFilterActive ? (d.churned + d.retained).toLocaleString() : d.churnRate + "%");
         }
         
         // Donut chart - Internet Service
@@ -651,7 +975,11 @@
                         Churn Rate: ${churnRate}%
                     `);
                 })
-                .on("mouseout", hideTooltip);
+                .on("mouseout", hideTooltip)
+                .on("click", function(event, d) {
+                    toggleSelection('internet', d.data.service);
+                    applyFilters(true);
+                });
             
             // Center text
             svg.append("text")
@@ -753,7 +1081,11 @@
                         Avg Churn Rate: ${d.avgChurn}%
                     `);
                 })
-                .on("mouseout", hideTooltip);
+                .on("mouseout", hideTooltip)
+                .on("click", function(event, d) {
+                    filterState.charges = (filterState.charges === d.range) ? null : d.range;
+                    applyFilters(true);
+                });
             
             // Churn rate annotations
             svg.selectAll(".churn-label")

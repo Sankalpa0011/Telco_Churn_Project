@@ -35,13 +35,14 @@ class InferencePipeline:
     Supports both batch and single predictions.
     """
     
-    def __init__(self, model_path: str = None, config: Dict = None):
+    def __init__(self, model_path: str = None, config: Dict = None, use_mlflow: bool = True):
         """
         Initialize the inference pipeline.
         
         Args:
             model_path: Path to trained model file
             config: Pipeline configuration
+            use_mlflow: Enable MLflow tracking
         """
         self.config = config or self._default_config()
         self.model = None
@@ -49,6 +50,14 @@ class InferencePipeline:
         self.feature_names = None
         self.pipeline_timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         self.prediction_history = []
+        self.use_mlflow = use_mlflow
+        self.mlflow_tracker = None
+        
+        # Initialize MLflow tracker if enabled
+        if self.use_mlflow:
+            from utils.mlflow_utils import MLflowTracker
+            self.mlflow_tracker = MLflowTracker()
+            logger.info("MLflow tracker initialized")
         
         logger.info(f"Inference Pipeline initialized - Timestamp: {self.pipeline_timestamp}")
     
